@@ -7,10 +7,10 @@ from PIL import Image
 
 # Load the saved model (adjust path if needed)
 # Assuming you saved the CNN model as a .h5 file and SVM model using pickle
-with open('svm_model.pkl', 'rb') as f:
+with open('svm_model1.pkl', 'rb') as f:
     svm_model = pickle.load(f)
 
-cnn_model = tf.keras.models.load_model('cnn_model.h5')
+cnn_model = tf.keras.models.load_model('cnn_model1.h5')
 
 # Define image preprocessing function
 def preprocess_image(image, target_size=(128, 128)):

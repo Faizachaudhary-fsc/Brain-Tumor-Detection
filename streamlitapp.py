@@ -1,49 +1,77 @@
 import streamlit as st
-import tensorflow as tf
-from tensorflow.keras.preprocessing.image import img_to_array
 import numpy as np
+import tensorflow as tf
+import cv2
 from PIL import Image
 
-# Load the saved models
-cnn_model = tf.keras.models.load_model('cnn_model1.h5')
-resnet50_model = tf.keras.models.load_model('resnet50_model.h5')
+# Load your trained model (adjust the path as needed)
+model_path = '/workspaces/WeaponDetection-Project/cnn_model1.h5'  # path to where your model is saved
+model = tf.keras.models.load_model(model_path)
 
-# Define image preprocessing function
 def preprocess_image(image, target_size=(128, 128)):
-    image = image.resize(target_size)
-    image = img_to_array(image) / 255.0  # Normalize
-    image = np.expand_dims(image, axis=0)  # Add batch dimension
-    return image
+    """Preprocesses the uploaded image to the format required by the model."""
+    # Convert the uploaded image to a NumPy array
+    img = np.array(image)
 
-# Streamlit app setup
-st.title("Brain Tumor Detection")
-st.write("Upload an MRI image to check for brain tumor.")
+    # Resize the image to the target size
+    img_resized = cv2.resize(img, target_size)
 
-# File uploader
-uploaded_file = st.file_uploader("Choose an MRI image...", type="jpg")
+    # Convert to grayscale (assuming the model expects grayscale input)
+    img_gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
+
+    # Normalize pixel values to the 0-1 range
+    img_normalized = img_gray / 255.0
+
+    # Reshape for the model input (assuming the model expects grayscale input)
+    img_reshaped = img_normalized.reshape((128, 128, 1))
+
+    # Add batch dimension (1, 128, 128, 1)
+    return np.array([img_reshaped])
+
+def predict_tumor(image):
+    """Predicts if a tumor is present in the image and applies a confidence threshold."""
+    processed_image = preprocess_image(image)
+    prediction = model.predict(processed_image)
+
+    # Define class labels based on your model's output
+    class_labels = ['No Tumor', 'Tumor']
+
+    # Get prediction probabilities
+    predicted_probs = prediction[0]  # Model returns a list, we get the first element
+
+    # Set a confidence threshold (e.g., 0.5)
+    confidence_threshold = 0.5  # Adjust based on validation performance
+
+    # Get the index of the class with the highest probability
+    predicted_class_idx = np.argmax(predicted_probs)
+
+    # If the highest confidence is below the threshold, classify as "No Tumor"
+    if predicted_probs[predicted_class_idx] < confidence_threshold:
+        return "No Tumor", predicted_probs
+
+    # Return the predicted class and probabilities
+    return class_labels[predicted_class_idx], predicted_probs
+
+# Streamlit app interface
+st.title("Brain Tumor Detection App")
+st.write("Upload an MRI image to check if a tumor is detected.")
+
+# Allow the user to upload an image
+uploaded_file = st.file_uploader("Upload an MRI image...", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Display uploaded image
+    # Convert the uploaded file to an image
     image = Image.open(uploaded_file)
-    st.image(image, caption='Uploaded MRI Image', use_column_width=True)
+    st.image(image, caption="Uploaded MRI Image", use_column_width=True)
 
-    # Preprocess the image for model input
-    preprocessed_image = preprocess_image(image)
+    # Predict if a tumor is present in the uploaded image
+    result, confidence = predict_tumor(image)
 
-    # Select Model
-    model_choice = st.selectbox("Choose a model for prediction:", ["CNN", "ResNet50"])
+    # Output the prediction and confidence scores
+    st.write(f"**Prediction:** {result}")
+    st.write(f"**Confidence Scores:** {confidence}")
 
-    # Make prediction based on model choice
-    if model_choice == "CNN":
-        prediction = cnn_model.predict(preprocessed_image)
-    elif model_choice == "ResNet50":
-        prediction = resnet50_model.predict(preprocessed_image)
-    
-    # Get prediction class
-    prediction_class = np.argmax(prediction, axis=1)[0]
-
-    # Show the result
-    if prediction_class == 1:
-        st.write("### Result: ♋ Tumor Detected")
+    if result == 'Tumor':
+        st.write("⚠️ Tumor Detected!")
     else:
-        st.write("### Result: No Tumor Detected")
+        st.write("No Tumor Detected.")

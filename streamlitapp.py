@@ -3,58 +3,54 @@ import numpy as np
 import tensorflow as tf
 import cv2
 from PIL import Image
+import pickle
 
-# Load your trained model (adjust the path as needed)
-model_path = '/workspaces/WeaponDetection-Project/cnn_model1.h5'  # path to where your model is saved
-model = tf.keras.models.load_model(model_path)
+# Load your trained models
+cnn_model_path = '/workspaces/WeaponDetection-Project/cnn_model1.h5'  # path to your CNN model
+svm_model_path = '/workspaces/WeaponDetection-Project/svm_model1.pkl'  # path to your SVM model
 
-def preprocess_image(image, target_size=(128, 128)):
-    """Preprocesses the uploaded image to the format required by the model."""
+cnn_model = tf.keras.models.load_model(cnn_model_path)
+
+# Load the SVM model using pickle
+with open(svm_model_path, 'rb') as f:
+    svm_model = pickle.load(f)
+
+def preprocess_image(image, target_size=(60, 60)):
+    """Preprocesses the uploaded MRI image to the format required by the model."""
     # Convert the uploaded image to a NumPy array
     img = np.array(image)
 
     # Resize the image to the target size
     img_resized = cv2.resize(img, target_size)
 
-    # Convert to grayscale (assuming the model expects grayscale input)
+    # Convert to grayscale if necessary (check if the model expects grayscale)
     img_gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
 
     # Normalize pixel values to the 0-1 range
     img_normalized = img_gray / 255.0
 
     # Reshape for the model input (assuming the model expects grayscale input)
-    img_reshaped = img_normalized.reshape((128, 128, 1))
+    img_reshaped = img_normalized.reshape((60, 60, 1))
 
-    # Add batch dimension (1, 128, 128, 1)
+    # Add batch dimension (1, 60, 60, 1)
     return np.array([img_reshaped])
 
-def predict_tumor(image):
-    """Predicts if a tumor is present in the image and applies a confidence threshold."""
+def predict_tumor(image, model_choice):
+    """Predicts if a brain tumor is detected based on the selected model."""
     processed_image = preprocess_image(image)
-    prediction = model.predict(processed_image)
-
-    # Define class labels based on your model's output
-    class_labels = ['No Tumor', 'Tumor']
-
-    # Get prediction probabilities
-    predicted_probs = prediction[0]  # Model returns a list, we get the first element
-
-    # Set a confidence threshold (e.g., 0.5)
-    confidence_threshold = 0.5  # Adjust based on validation performance
-
-    # Get the index of the class with the highest probability
-    predicted_class_idx = np.argmax(predicted_probs)
-
-    # If the highest confidence is below the threshold, classify as "No Tumor"
-    if predicted_probs[predicted_class_idx] < confidence_threshold:
-        return "No Tumor", predicted_probs
-
-    # Return the predicted class and probabilities
-    return class_labels[predicted_class_idx], predicted_probs
+    
+    if model_choice == 'CNN':
+        prediction = cnn_model.predict(processed_image)
+        prediction_class = np.argmax(prediction, axis=1)[0]
+    elif model_choice == 'SVM':
+        # Flatten the image for SVM (if required)
+        flattened_image = processed_image.flatten().reshape(1, -1)
+        prediction_class = svm_model.predict(flattened_image)[0]
+    
+    return prediction_class
 
 # Streamlit app interface
 st.title("Brain Tumor Detection App")
-st.write("Upload an MRI image to check if a tumor is detected.")
 
 # Allow the user to upload an image
 uploaded_file = st.file_uploader("Upload an MRI image...", type=["jpg", "jpeg", "png"])
@@ -64,14 +60,15 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded MRI Image", use_column_width=True)
 
-    # Predict if a tumor is present in the uploaded image
-    result, confidence = predict_tumor(image)
+    # Model selection for prediction
+    model_choice = st.selectbox("Choose a model for prediction:", ["CNN", "SVM"])
 
-    # Output the prediction and confidence scores
-    st.write(f"**Prediction:** {result}")
-    st.write(f"**Confidence Scores:** {confidence}")
+    # Predict tumor presence based on the selected model
+    prediction_class = predict_tumor(image, model_choice)
 
-    if result == 'Tumor':
-        st.write("⚠️ Tumor Detected!")
+    # Output the result based on prediction class
+    if prediction_class == 1:
+        st.write("### Result: Tumor Detected")
     else:
-        st.write("No Tumor Detected.")
+        st.write("### Result: No Tumor Detected")
+

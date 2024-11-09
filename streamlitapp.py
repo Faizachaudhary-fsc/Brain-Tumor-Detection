@@ -1,16 +1,16 @@
 import streamlit as st
 import pickle
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import img_to_array, load_img
+from tensorflow.keras.preprocessing.image import img_to_array
 import numpy as np
 from PIL import Image
 
-# Load the saved model (adjust path if needed)
-# Assuming you saved the CNN model as a .h5 file and SVM model using pickle
+# Load the saved models
 with open('svm_model1.pkl', 'rb') as f:
     svm_model = pickle.load(f)
 
 cnn_model = tf.keras.models.load_model('cnn_model1.h5')
+resnet50_model = tf.keras.models.load_model('resnet50_model.h5')
 
 # Define image preprocessing function
 def preprocess_image(image, target_size=(128, 128)):
@@ -35,11 +35,14 @@ if uploaded_file is not None:
     preprocessed_image = preprocess_image(image)
 
     # Select Model
-    model_choice = st.selectbox("Choose a model for prediction:", ["CNN", "SVM"])
+    model_choice = st.selectbox("Choose a model for prediction:", ["CNN", "ResNet50", "SVM"])
 
     # Make prediction based on model choice
     if model_choice == "CNN":
         prediction = cnn_model.predict(preprocessed_image)
+        prediction_class = np.argmax(prediction, axis=1)[0]
+    elif model_choice == "ResNet50":
+        prediction = resnet50_model.predict(preprocessed_image)
         prediction_class = np.argmax(prediction, axis=1)[0]
     elif model_choice == "SVM":
         # Flatten the image for SVM (if required)
@@ -48,6 +51,6 @@ if uploaded_file is not None:
 
     # Show the result
     if prediction_class == 1:
-        st.write("### Result:  ♋ Tumor Detected")
+        st.write("### Result: ♋ Tumor Detected")
     else:
         st.write("### Result: No Tumor Detected")

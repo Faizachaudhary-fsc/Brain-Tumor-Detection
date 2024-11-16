@@ -6,13 +6,22 @@ import cv2
 # Load the CNN model
 cnn_model = load_model('cnn_model1.h5')
 
+# App title and description
 st.title("Brain Tumor Detection")
-uploaded_file = st.file_uploader("Upload MRI Image", type="jpg")
+st.markdown("""
+This AI-powered application uses deep learning to analyze MRI images and detect the presence of a brain tumor. 
+""")
+
+# File uploader
+uploaded_file = st.file_uploader("Upload an MRI Image (JPG format)", type="jpg")
 
 if uploaded_file:
     # Read and decode the uploaded image file
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+    
+    # Display the uploaded image
+    st.image(img, caption="Uploaded MRI Image", use_container_width=True)
     
     # Resize to 128x128 and normalize for the model input
     img_resized = cv2.resize(img, (128, 128))
@@ -24,6 +33,6 @@ if uploaded_file:
 
     # Display results based on prediction
     if class_index == 1:
-        st.write("Tumor Detected")
+        st.markdown("### ⚠️ Tumor Detected")
     else:
-        st.write("No Tumor Detected")
+        st.markdown("### ✅ No Tumor Detected")
